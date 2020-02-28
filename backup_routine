@@ -1,0 +1,55 @@
+#!/bin/bash
+
+if [ ! -d $1 ]; then
+        echo "Not a valid directory. Usage of BackUP Routine: <dir>"
+        exit 1
+fi
+cd $1
+config="/etc/backuproutine/server.conf"
+
+if [ ! -f $config ]; then
+        echo "Invalid Configuration File"
+        exit 1
+fi
+
+
+
+for dir in $(ls --ignore="$0"); do
+        tar -zcvf "$dir"$(date +"%d%m%y_%H%M")".agback" "$dir" >> /dev/null
+        echo "Backup of $dir: DONE"
+done
+
+i=0
+while read line; do
+        if [ $i -eq 0 ]; then
+                let "i=i+1"
+                continue
+        fi
+
+        echo "Connecting to backup server $line"
+        ip=$(echo $line | cut -d " " -f 1)
+        path=$(echo $line | cut -d " " -f 2)
+
+        ping -c 2 $ip >> /dev/null
+
+        if [ $? -eq 0 ]; then
+                echo  "Server Available. Uploading files"
+                scp *.agback root@$ip:$path
+                if [ $? -eq 0 ]; then
+                        echo "Done!"
+                        rm -f *.agback
+                        exit 0
+                else
+                        echo "Error while uploading! Checking next server"
+                        continue
+                fi
+        else
+                echo "Not Available. Skipping"
+        fi
+
+done < "$config"
+
+
+echo "Could NOT upload your backup"
+exit 1
+
